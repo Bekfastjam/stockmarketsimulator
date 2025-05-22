@@ -1,0 +1,6 @@
+git init
+git add stock_market_simulator.py
+git commit -m "Initial commit: simple stock market simulator"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/stock-market-simulator.git
+git push -u origin main
