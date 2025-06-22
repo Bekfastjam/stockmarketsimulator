@@ -56,15 +56,19 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Use localhost instead of 0.0.0.0 to avoid binding issues
   const port = 5000;
   server.listen({
     port,
-    host: "0.0.0.0",
-    reusePort: true,
+    host: "localhost",
   }, () => {
-    log(`serving on port ${port}`);
+    log(`🚀 Server running on http://localhost:${port}`);
+  }).on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      log(`❌ Port ${port} is already in use. Please try a different port.`);
+    } else {
+      log(`❌ Server error: ${err.message}`);
+    }
+    process.exit(1);
   });
 })();

@@ -8,9 +8,19 @@ import Watchlist from "@/components/watchlist";
 import Holdings from "@/components/holdings";
 import Transactions from "@/components/transactions";
 import TradeModal from "@/components/trade-modal";
+import NewsFeed from "@/components/news-feed";
+import AlertsPanel from "@/components/alerts-panel";
+import MarketIndices from "@/components/market-indices";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useEffect, useState } from "react";
-import type { StockPrice } from "@shared/schema";
+import type { StockPrice, PortfolioSummary } from "@shared/schema";
+
+interface User {
+  id: number;
+  username: string;
+  cashBalance: string;
+  preferences?: any;
+}
 
 export default function Dashboard() {
   const [realtimePrices, setRealtimePrices] = useState<StockPrice[]>([]);
@@ -23,12 +33,12 @@ export default function Dashboard() {
     }
   }, [lastMessage]);
 
-  const { data: portfolioSummary } = useQuery({
+  const { data: portfolioSummary } = useQuery<PortfolioSummary>({
     queryKey: ['/api/portfolio/summary'],
     refetchInterval: 5000, // Refetch every 5 seconds
   });
 
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<User>({
     queryKey: ['/api/user'],
   });
 
@@ -53,8 +63,10 @@ export default function Dashboard() {
               <div className="xl:col-span-2">
                 <MarketChart />
               </div>
-              <div>
+              <div className="space-y-6">
                 <QuickTrade />
+                <AlertsPanel />
+                <MarketIndices />
               </div>
             </div>
 
@@ -63,7 +75,10 @@ export default function Dashboard() {
               <Holdings realtimePrices={realtimePrices} />
             </div>
 
-            <Transactions />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Transactions />
+              <NewsFeed />
+            </div>
           </div>
         </div>
       </div>
