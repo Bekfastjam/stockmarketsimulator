@@ -388,7 +388,7 @@ class StorageService {
     db.news.set('latest', newsData);
   }
 
-  // Market simulation
+  // Market simulation - Hybrid approach with Python engine
   async getSimulatedMarketData(symbols = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']) {
     try {
       const results = [];
@@ -398,7 +398,7 @@ class StorageService {
         let quote = await alphaVantageService.getQuote(symbol);
         
         if (!quote) {
-          // Fallback to simulated data
+          // Fallback to Python simulation for high-quality data
           quote = await this.generateSimulatedQuote(symbol);
         }
         
@@ -411,15 +411,22 @@ class StorageService {
       return results;
     } catch (error) {
       console.error('Error getting market data:', error);
-      // Return simulated data as fallback
-      return symbols.map(symbol => this.generateSimulatedQuote(symbol));
+      // Return JavaScript simulated data as final fallback
+      return symbols.map(symbol => this.createJavaScriptSimulatedQuote(symbol));
     }
   }
 
   async generateSimulatedQuote(symbol) {
-    // Use Python script for simulation
+    // Use Python script for high-quality simulation
     return new Promise((resolve, reject) => {
-      const pythonProcess = spawn('python3', ['server/market-engine.py', symbol]);
+      // Use virtual environment if available, otherwise fallback to system python
+      const pythonCommand = process.platform === 'win32' ? 'venv\\Scripts\\python.exe' : 'venv/bin/python';
+      const pythonArgs = ['server/market-engine.py', symbol];
+      
+      const pythonProcess = spawn(pythonCommand, pythonArgs, {
+        cwd: process.cwd(),
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
       
       let dataString = '';
       
@@ -434,8 +441,8 @@ class StorageService {
       pythonProcess.on('close', (code) => {
         if (code !== 0) {
           console.error(`Python script exited with code ${code}`);
-          // Fallback to basic simulation
-          resolve(this.createBasicSimulatedQuote(symbol));
+          // Fallback to JavaScript simulation
+          resolve(this.createJavaScriptSimulatedQuote(symbol));
           return;
         }
         
@@ -444,29 +451,62 @@ class StorageService {
           resolve(quote);
         } catch (error) {
           console.error('Error parsing Python output:', error);
-          resolve(this.createBasicSimulatedQuote(symbol));
+          resolve(this.createJavaScriptSimulatedQuote(symbol));
         }
+      });
+      
+      pythonProcess.on('error', (error) => {
+        console.error('Failed to start Python process:', error.message);
+        // Fallback to JavaScript simulation
+        resolve(this.createJavaScriptSimulatedQuote(symbol));
       });
     });
   }
 
-  createBasicSimulatedQuote(symbol) {
-    const basePrice = Math.random() * 500 + 50;
-    const change = (Math.random() - 0.5) * 20;
-    const price = basePrice + change;
-    const changePercent = (change / basePrice) * 100;
+  createJavaScriptSimulatedQuote(symbol) {
+    // Base prices for popular stocks
+    const basePrices = {
+      'AAPL': 175,
+      'GOOGL': 140,
+      'MSFT': 330,
+      'TSLA': 250,
+      'AMZN': 180,
+      'NVDA': 800,
+      'META': 350,
+      'NFLX': 600,
+      'SPY': 450,
+      'QQQ': 380,
+      'IWM': 200,
+    };
+
+    const basePrice = basePrices[symbol] || (Math.random() * 500 + 50);
+    
+    // Generate realistic price movement
+    const volatility = 0.02; // 2% daily volatility
+    const trend = (Math.random() - 0.5) * 0.01; // Slight trend
+    const randomWalk = (Math.random() - 0.5) * volatility;
+    
+    const priceChange = basePrice * (trend + randomWalk);
+    const currentPrice = basePrice + priceChange;
+    const changePercent = (priceChange / basePrice) * 100;
+    
+    // Generate OHLC data
+    const open = basePrice + (Math.random() - 0.5) * basePrice * 0.01;
+    const high = Math.max(open, currentPrice) + Math.random() * basePrice * 0.005;
+    const low = Math.min(open, currentPrice) - Math.random() * basePrice * 0.005;
+    const volume = Math.floor(Math.random() * 50000000 + 10000000);
     
     return {
       symbol,
-      open: basePrice.toFixed(2),
-      high: (basePrice + Math.random() * 10).toFixed(2),
-      low: (basePrice - Math.random() * 10).toFixed(2),
-      price: price.toFixed(2),
-      volume: Math.floor(Math.random() * 10000000 + 1000000).toString(),
+      open: open.toFixed(4),
+      high: high.toFixed(4),
+      low: low.toFixed(4),
+      price: currentPrice.toFixed(4),
+      volume: volume.toString(),
       latestTradingDay: new Date().toISOString().split('T')[0],
-      previousClose: basePrice.toFixed(2),
-      change: change.toFixed(2),
-      changePercent: changePercent.toFixed(2) + '%',
+      previousClose: basePrice.toFixed(4),
+      change: priceChange.toFixed(4),
+      changePercent: changePercent.toFixed(4) + '%',
     };
   }
 

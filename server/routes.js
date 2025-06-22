@@ -318,6 +318,19 @@ export async function registerRoutes(app) {
   });
 
   // Market data
+  app.get('/api/market-data', async (req, res) => {
+    try {
+      const { symbols } = req.query;
+      const symbolList = symbols ? symbols.split(',') : ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN'];
+      
+      const quotes = await storageService.getSimulatedMarketData(symbolList);
+      res.json(quotes);
+    } catch (error) {
+      console.error('Get market data error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   app.get('/api/market/quote/:symbol', async (req, res) => {
     try {
       const { symbol } = req.params;

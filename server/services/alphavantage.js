@@ -1,31 +1,26 @@
 import axios from 'axios';
 
-const ALPHA_VANTAGE_API_KEY = 'F79LIF1JLYSZLGHH';
-const BASE_URL = 'https://www.alphavantage.co/query';
-
 class AlphaVantageService {
+  constructor() {
+    this.apiKey = process.env.ALPHA_VANTAGE_API_KEY || 'F79LIF1JLYSZLGHH';
+    this.baseUrl = 'https://www.alphavantage.co/query';
+    this.timeout = 5000; // Reduced timeout to 5 seconds
+  }
+
   async makeRequest(params) {
     try {
-      const response = await axios.get(BASE_URL, {
+      const response = await axios.get(this.baseUrl, {
         params: {
           ...params,
-          apikey: ALPHA_VANTAGE_API_KEY,
+          apikey: this.apiKey,
         },
-        timeout: 10000,
+        timeout: this.timeout,
       });
-
-      if (response.data['Error Message']) {
-        throw new Error(response.data['Error Message']);
-      }
-
-      if (response.data['Note']) {
-        throw new Error('API rate limit exceeded');
-      }
-
+      
       return response.data;
     } catch (error) {
-      console.error('AlphaVantage API error:', error);
-      throw error;
+      console.error(`AlphaVantage API error for ${params.function}:`, error.message);
+      return null;
     }
   }
 
@@ -33,11 +28,18 @@ class AlphaVantageService {
     try {
       const data = await this.makeRequest({
         function: 'GLOBAL_QUOTE',
-        symbol: symbol.toUpperCase(),
+        symbol: symbol,
       });
 
+      if (!data || data['Error Message'] || data['Note']) {
+        console.log(`No real data available for ${symbol}, using simulation`);
+        return null;
+      }
+
       const quote = data['Global Quote'];
-      if (!quote) return null;
+      if (!quote || !quote['05. price']) {
+        return null;
+      }
 
       return {
         symbol: quote['01. symbol'],
@@ -52,7 +54,7 @@ class AlphaVantageService {
         changePercent: quote['10. change percent'],
       };
     } catch (error) {
-      console.error(`Failed to get quote for ${symbol}:`, error);
+      console.error(`Failed to get quote for ${symbol}:`, error.message);
       return null;
     }
   }
@@ -96,46 +98,73 @@ class AlphaVantageService {
     }
   }
 
-  async getNews(tickers, topics, limit = 50) {
+  async getNews(symbols = ['AAPL', 'GOOGL', 'MSFT', 'TSLA']) {
     try {
-      const params = {
-        function: 'NEWS_SENTIMENT',
-        limit: limit.toString(),
-      };
+      const allNews = [];
+      
+      for (const symbol of symbols.slice(0, 2)) { // Limit to 2 symbols to avoid rate limits
+        const data = await this.makeRequest({
+          function: 'NEWS_SENTIMENT',
+          tickers: symbol,
+          limit: 5,
+        });
 
-      if (tickers && tickers.length > 0) {
-        params.tickers = tickers.join(',');
+        if (data && data.feed && !data['Error Message'] && !data['Note']) {
+          const newsItems = data.feed.map(item => ({
+            id: item.uuid,
+            title: item.title,
+            summary: item.summary,
+            url: item.url,
+            publishedAt: item.time_published,
+            source: item.source,
+            sentiment: item.overall_sentiment_label,
+            relevanceScore: item.relevance_score,
+            symbol: symbol,
+          }));
+          
+          allNews.push(...newsItems);
+        }
       }
 
-      if (topics && topics.length > 0) {
-        params.topics = topics.join(',');
-      }
-
-      const data = await this.makeRequest(params);
-      return data.feed || [];
+      return allNews.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
     } catch (error) {
-      console.error('Failed to get news:', error);
+      console.error('Failed to get news:', error.message);
       return [];
     }
   }
 
   async getMarketIndices() {
     try {
-      const [spy, qqq, iwm] = await Promise.all([
-        this.getQuote('SPY'),
-        this.getQuote('QQQ'),
-        this.getQuote('IWM'),
-      ]);
+      const indices = ['SPY', 'QQQ', 'IWM']; // S&P 500, NASDAQ, Russell 2000
+      const results = [];
 
-      return {
-        SPY: spy,
-        QQQ: qqq,
-        IWM: iwm,
-      };
+      for (const symbol of indices) {
+        const quote = await this.getQuote(symbol);
+        if (quote) {
+          results.push({
+            symbol,
+            name: this.getIndexName(symbol),
+            price: quote.price,
+            change: quote.change,
+            changePercent: quote.changePercent,
+          });
+        }
+      }
+
+      return results;
     } catch (error) {
-      console.error('Failed to get market indices:', error);
-      throw error;
+      console.error('Failed to get market indices:', error.message);
+      return [];
     }
+  }
+
+  getIndexName(symbol) {
+    const names = {
+      'SPY': 'S&P 500 ETF',
+      'QQQ': 'NASDAQ-100 ETF',
+      'IWM': 'Russell 2000 ETF',
+    };
+    return names[symbol] || symbol;
   }
 
   async searchStocks(keywords) {

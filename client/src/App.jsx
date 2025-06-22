@@ -1,16 +1,21 @@
 import React from 'react';
-import { Route, Switch } from 'wouter';
-import Dashboard from './pages/dashboard.jsx';
-import NotFound from './pages/not-found.jsx';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from './components/ui/toaster';
+import './index.css';
+import Dashboard from './pages/dashboard';
+import NotFound from './pages/not-found';
 
 function App() {
   return (
-    <div className="App">
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route component={NotFound} />
-      </Switch>
-    </div>
+    <Router>
+      <div className="App">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+        <Toaster />
+      </div>
+    </Router>
   );
 }
 

@@ -1,179 +1,286 @@
 #!/usr/bin/env python3
+"""
+Advanced Stock Market Simulation Engine
+Provides realistic market data generation using Python's financial libraries
+"""
 
 import json
-import random
-import time
-import math
 import sys
+import random
+import math
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+import numpy as np
+from typing import Dict, List, Optional
 
 class MarketEngine:
     def __init__(self):
-        self.stocks = {
-            'AAPL': {'base_price': 173.24, 'volatility': 0.02, 'trend': 0.001},
-            'GOOGL': {'base_price': 2641.30, 'volatility': 0.025, 'trend': -0.0005},
-            'TSLA': {'base_price': 208.91, 'volatility': 0.04, 'trend': 0.002},
-            'MSFT': {'base_price': 378.85, 'volatility': 0.018, 'trend': 0.0008},
-            'NVDA': {'base_price': 429.00, 'volatility': 0.035, 'trend': 0.0015},
-            'AMZN': {'base_price': 3285.51, 'volatility': 0.022, 'trend': 0.0003},
+        # Base prices for popular stocks (realistic starting points)
+        self.base_prices = {
+            'AAPL': 175.0,
+            'GOOGL': 140.0,
+            'MSFT': 330.0,
+            'TSLA': 250.0,
+            'AMZN': 180.0,
+            'NVDA': 800.0,
+            'META': 350.0,
+            'NFLX': 600.0,
+            'SPY': 450.0,
+            'QQQ': 380.0,
+            'IWM': 200.0,
+            'JPM': 180.0,
+            'JNJ': 160.0,
+            'PG': 150.0,
+            'V': 250.0,
+            'HD': 350.0,
+            'DIS': 90.0,
+            'PYPL': 60.0,
+            'INTC': 45.0,
+            'CSCO': 50.0
         }
-        self.current_prices = {}
-        self.previous_prices = {}
         
-        # Initialize current prices
-        for symbol, data in self.stocks.items():
-            self.current_prices[symbol] = data['base_price']
-            self.previous_prices[symbol] = data['base_price']
-
-    def simulate_price_movement(self, symbol: str) -> Tuple[float, float, float]:
-        """Simulate realistic price movement for a stock"""
-        if symbol not in self.stocks:
-            return 0, 0, 0
+        # Volatility profiles (daily volatility percentages)
+        self.volatility = {
+            'AAPL': 0.025,
+            'GOOGL': 0.030,
+            'MSFT': 0.020,
+            'TSLA': 0.050,
+            'AMZN': 0.035,
+            'NVDA': 0.040,
+            'META': 0.035,
+            'NFLX': 0.040,
+            'SPY': 0.015,
+            'QQQ': 0.020,
+            'IWM': 0.025,
+            'JPM': 0.025,
+            'JNJ': 0.015,
+            'PG': 0.015,
+            'V': 0.020,
+            'HD': 0.025,
+            'DIS': 0.030,
+            'PYPL': 0.035,
+            'INTC': 0.025,
+            'CSCO': 0.020
+        }
         
-        stock_data = self.stocks[symbol]
-        current_price = self.current_prices[symbol]
+        # Market sentiment (trend bias)
+        self.sentiment = {
+            'AAPL': 0.001,
+            'GOOGL': 0.002,
+            'MSFT': 0.001,
+            'TSLA': -0.003,
+            'AMZN': 0.002,
+            'NVDA': 0.003,
+            'META': 0.002,
+            'NFLX': 0.001,
+            'SPY': 0.0005,
+            'QQQ': 0.001,
+            'IWM': 0.0005,
+            'JPM': 0.001,
+            'JNJ': 0.0005,
+            'PG': 0.0005,
+            'V': 0.001,
+            'HD': 0.001,
+            'DIS': -0.001,
+            'PYPL': -0.002,
+            'INTC': -0.001,
+            'CSCO': 0.0005
+        }
         
-        # Generate random walk with trend and volatility
-        random_factor = random.gauss(0, 1)  # Normal distribution
+        # Market hours (9:30 AM - 4:00 PM ET)
+        self.market_open = 9.5  # 9:30 AM
+        self.market_close = 16.0  # 4:00 PM
         
-        # Apply trend and volatility
-        price_change_percent = (stock_data['trend'] + 
-                              stock_data['volatility'] * random_factor)
+    def generate_price_movement(self, symbol: str, base_price: float) -> Dict:
+        """Generate realistic price movement using Brownian motion and market factors"""
         
-        # Add some market correlation (all stocks tend to move somewhat together)
-        market_factor = random.gauss(0, 0.005)  # Small market-wide movement
-        price_change_percent += market_factor
+        # Get stock-specific parameters
+        vol = self.volatility.get(symbol, 0.025)
+        trend = self.sentiment.get(symbol, 0.0)
+        
+        # Time-based volatility (higher during market hours)
+        now = datetime.now()
+        hour = now.hour + now.minute / 60.0
+        
+        if self.market_open <= hour <= self.market_close:
+            # Market hours - normal volatility
+            time_factor = 1.0
+        else:
+            # After hours - reduced volatility
+            time_factor = 0.3
+        
+        # Generate price movement using geometric Brownian motion
+        dt = 1/252  # Daily time step
+        drift = trend * dt
+        diffusion = vol * math.sqrt(dt) * time_factor
+        
+        # Random walk component
+        random_walk = np.random.normal(0, 1)
+        
+        # Price change
+        price_change = base_price * (drift + diffusion * random_walk)
+        
+        # Add some market noise
+        noise = base_price * 0.001 * np.random.normal(0, 1)
+        price_change += noise
         
         # Calculate new price
-        new_price = current_price * (1 + price_change_percent)
+        new_price = base_price + price_change
         
-        # Ensure price doesn't go negative or too extreme
-        new_price = max(new_price, current_price * 0.95)  # Max 5% drop
-        new_price = min(new_price, current_price * 1.05)  # Max 5% gain
-        
-        # Calculate change and change percent
-        change = new_price - current_price
-        change_percent = (change / current_price) * 100 if current_price > 0 else 0
-        
-        # Update tracking
-        self.previous_prices[symbol] = self.current_prices[symbol]
-        self.current_prices[symbol] = new_price
-        
-        return new_price, change, change_percent
-
-    def get_market_data(self) -> List[Dict]:
-        """Get current market data for all stocks"""
-        market_data = []
-        
-        for symbol in self.stocks.keys():
-            price, change, change_percent = self.simulate_price_movement(symbol)
-            
-            market_data.append({
-                'symbol': symbol,
-                'price': round(price, 2),
-                'change': round(change, 2),
-                'changePercent': round(change_percent, 2),
-                'timestamp': datetime.now().isoformat()
-            })
-        
-        return market_data
-
-    def get_historical_data(self, symbol: str, days: int = 30) -> List[Dict]:
-        """Generate historical price data for charting"""
-        if symbol not in self.stocks:
-            return []
-        
-        historical_data = []
-        base_price = self.stocks[symbol]['base_price']
-        current_price = base_price
-        
-        # Generate historical data going backwards
-        for i in range(days, 0, -1):
-            date = datetime.now() - timedelta(days=i)
-            
-            # Simulate historical price movement
-            random_factor = random.gauss(0, 1)
-            price_change = self.stocks[symbol]['volatility'] * random_factor
-            current_price *= (1 + price_change)
-            
-            # Keep prices reasonable
-            current_price = max(current_price, base_price * 0.7)
-            current_price = min(current_price, base_price * 1.3)
-            
-            historical_data.append({
-                'date': date.strftime('%Y-%m-%d'),
-                'price': round(current_price, 2),
-                'volume': random.randint(1000000, 10000000)
-            })
-        
-        return historical_data
-
-    def simulate_market_indices(self) -> Dict:
-        """Simulate major market indices"""
-        # S&P 500 simulation
-        sp500_base = 4200
-        sp500_change = random.gauss(0.001, 0.015)  # Small daily change
-        sp500_price = sp500_base * (1 + sp500_change)
+        # Ensure price doesn't go negative
+        new_price = max(new_price, base_price * 0.1)
         
         return {
-            'SP500': {
-                'value': round(sp500_price, 2),
-                'change': round(sp500_price - sp500_base, 2),
-                'changePercent': round(sp500_change * 100, 2)
-            }
+            'price_change': price_change,
+            'new_price': new_price,
+            'volatility': vol,
+            'trend': trend
         }
+    
+    def generate_ohlc(self, symbol: str, base_price: float) -> Dict:
+        """Generate realistic OHLC (Open, High, Low, Close) data"""
+        
+        # Generate price movement
+        movement = self.generate_price_movement(symbol, base_price)
+        new_price = movement['new_price']
+        
+        # Generate OHLC
+        open_price = base_price + (np.random.normal(0, 1) * base_price * 0.005)
+        close_price = new_price
+        
+        # High and low based on daily range
+        daily_range = base_price * movement['volatility'] * np.random.uniform(0.5, 1.5)
+        
+        if close_price > open_price:
+            # Bullish day
+            high = max(open_price, close_price) + np.random.uniform(0, daily_range * 0.3)
+            low = min(open_price, close_price) - np.random.uniform(0, daily_range * 0.2)
+        else:
+            # Bearish day
+            high = max(open_price, close_price) + np.random.uniform(0, daily_range * 0.2)
+            low = min(open_price, close_price) - np.random.uniform(0, daily_range * 0.3)
+        
+        # Ensure logical OHLC relationship
+        high = max(high, open_price, close_price)
+        low = min(low, open_price, close_price)
+        
+        return {
+            'open': round(open_price, 4),
+            'high': round(high, 4),
+            'low': round(low, 4),
+            'close': round(close_price, 4)
+        }
+    
+    def generate_volume(self, symbol: str, price: float) -> int:
+        """Generate realistic trading volume"""
+        
+        # Base volume by market cap (approximate)
+        volume_factors = {
+            'AAPL': 50000000,
+            'GOOGL': 30000000,
+            'MSFT': 40000000,
+            'TSLA': 80000000,
+            'AMZN': 60000000,
+            'NVDA': 70000000,
+            'META': 50000000,
+            'NFLX': 30000000,
+            'SPY': 100000000,
+            'QQQ': 80000000,
+            'IWM': 40000000,
+            'JPM': 20000000,
+            'JNJ': 15000000,
+            'PG': 12000000,
+            'V': 25000000,
+            'HD': 18000000,
+            'DIS': 25000000,
+            'PYPL': 35000000,
+            'INTC': 30000000,
+            'CSCO': 25000000
+        }
+        
+        base_volume = volume_factors.get(symbol, 20000000)
+        
+        # Add randomness
+        volume_variation = np.random.uniform(0.5, 1.5)
+        
+        # Time-based volume (higher during market hours)
+        now = datetime.now()
+        hour = now.hour + now.minute / 60.0
+        
+        if self.market_open <= hour <= self.market_close:
+            time_factor = 1.0
+        else:
+            time_factor = 0.2
+        
+        volume = int(base_volume * volume_variation * time_factor)
+        
+        return volume
+    
+    def generate_quote(self, symbol: str) -> Dict:
+        """Generate a complete stock quote"""
+        
+        # Get base price
+        base_price = self.base_prices.get(symbol, 100.0)
+        
+        # Generate OHLC data
+        ohlc = self.generate_ohlc(symbol, base_price)
+        
+        # Generate volume
+        volume = self.generate_volume(symbol, ohlc['close'])
+        
+        # Calculate change and percentage
+        previous_close = base_price
+        current_price = ohlc['close']
+        change = current_price - previous_close
+        change_percent = (change / previous_close) * 100 if previous_close > 0 else 0
+        
+        # Update base price for next iteration
+        self.base_prices[symbol] = current_price
+        
+        # Generate quote
+        quote = {
+            'symbol': symbol,
+            'open': str(ohlc['open']),
+            'high': str(ohlc['high']),
+            'low': str(ohlc['low']),
+            'price': str(ohlc['close']),
+            'volume': str(volume),
+            'latestTradingDay': datetime.now().strftime('%Y-%m-%d'),
+            'previousClose': str(previous_close),
+            'change': str(round(change, 4)),
+            'changePercent': f"{round(change_percent, 4)}%"
+        }
+        
+        return quote
+    
+    def generate_market_data(self, symbols: List[str]) -> List[Dict]:
+        """Generate market data for multiple symbols"""
+        quotes = []
+        
+        for symbol in symbols:
+            try:
+                quote = self.generate_quote(symbol)
+                quotes.append(quote)
+            except Exception as e:
+                print(f"Error generating quote for {symbol}: {e}", file=sys.stderr)
+                continue
+        
+        return quotes
 
 def main():
+    """Main function to handle command line arguments"""
     if len(sys.argv) < 2:
-        print("Usage: python market-engine.py <command> [args]")
+        print("Usage: python market-engine.py <symbol>")
         sys.exit(1)
     
-    command = sys.argv[1]
-    engine = MarketEngine()
+    symbol = sys.argv[1].upper()
     
-    if command == "get_prices":
-        # Get current market prices
-        market_data = engine.get_market_data()
-        print(json.dumps(market_data))
-    
-    elif command == "get_historical":
-        if len(sys.argv) < 3:
-            print("Usage: python market-engine.py get_historical <symbol>")
-            sys.exit(1)
-        
-        symbol = sys.argv[2].upper()
-        days = int(sys.argv[3]) if len(sys.argv) > 3 else 30
-        historical_data = engine.get_historical_data(symbol, days)
-        print(json.dumps(historical_data))
-    
-    elif command == "get_indices":
-        # Get market indices
-        indices = engine.simulate_market_indices()
-        print(json.dumps(indices))
-    
-    elif command == "simulate_trading_day":
-        # Simulate a full trading day with updates every few seconds
-        start_time = time.time()
-        update_interval = 5  # seconds
-        
-        while time.time() - start_time < 3600:  # Run for 1 hour
-            market_data = engine.get_market_data()
-            indices = engine.simulate_market_indices()
-            
-            output = {
-                'timestamp': datetime.now().isoformat(),
-                'stocks': market_data,
-                'indices': indices
-            }
-            
-            print(json.dumps(output))
-            sys.stdout.flush()
-            time.sleep(update_interval)
-    
-    else:
-        print(f"Unknown command: {command}")
+    try:
+        engine = MarketEngine()
+        quote = engine.generate_quote(symbol)
+        print(json.dumps(quote))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    main() 
