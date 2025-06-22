@@ -37,7 +37,7 @@ export async function setupVite(app, server) {
 }
 
 export function serveStatic(app) {
-  const staticPath = join(__dirname, '../dist');
+  const staticPath = join(__dirname, '../dist/public');
   
   if (fs.existsSync(staticPath)) {
     app.use(express.static(staticPath));

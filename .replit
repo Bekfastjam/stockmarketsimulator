@@ -1,5 +1,5 @@
 modules = ["nodejs-20", "web", "postgresql-16", "python-3.11"]
-run = "npm run dev"
+run = "npm run start:replit"
 entrypoint = "server/index.js"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -44,7 +44,7 @@ build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
 [[ports]]
-localPort = 5000
+localPort = 3000
 externalPort = 80
 
 [workflows]
@@ -66,4 +66,4 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
-waitForPort = 5000
+waitForPort = 3000
